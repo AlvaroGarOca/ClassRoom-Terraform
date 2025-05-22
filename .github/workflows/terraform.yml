@@ -58,6 +58,14 @@ jobs:
     - name: Terraform Plan
       run: terraform -chdir='practica-4' plan -input=false
 
-    - name: Terraform Apply
+    - name: Terraform Apply (push to main)
       if: github.ref == 'refs/heads/main' && github.event_name == 'push'
-      run: terraform -chdir='practica-4' ${{ inputs.action }} -auto-approve -input=false
+      run: terraform -chdir='practica-4' apply -auto-approve -input=false
+
+    - name: Terraform Apply/Destroy (manual dispatch)
+      if: github.event_name == 'workflow_dispatch' && inputs.action == 'apply'
+      run: terraform -chdir='practica-4' apply -auto-approve -input=false
+
+    - name: Terraform Destroy (manual dispatch)
+      if: github.event_name == 'workflow_dispatch' && inputs.action == 'destroy'
+      run: terraform -chdir='practica-4' destroy -auto-approve -input=false
