@@ -8,7 +8,7 @@ on:
     inputs:
       action:
         description: "Action to be executed"
-        required: false
+        required: true
         default: "apply"
         type: choice
         options:
