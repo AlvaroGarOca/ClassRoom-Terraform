@@ -1,0 +1,57 @@
+[
+        {
+            "name": "wordpress",
+            "image": "wordpress:6.8.0-apache",
+            "cpu": 0,
+            "portMappings": [
+                {
+                    "name": "wordpress-80-tcp",
+                    "containerPort": 80,
+                    "hostPort": 80,
+                    "protocol": "tcp",
+                    "appProtocol": "http"
+                }
+            ],
+            "essential": true,
+            "environment": [],
+            "mountPoints": [
+                {
+                    "sourceVolume": "Wordpress-convenio",
+                    "containerPath": "/var/www/html",
+                    "readOnly": false
+                }
+            ],
+            "volumesFrom": [],
+            "secrets": [
+                {
+                    "name": "WORDPRESS_DB_HOST",
+                    "valueFrom": "arn:aws:secretsmanager:eu-central-1:414131675413:secret:SecretWordpress-MRSCvF:host::"
+                },
+                {
+                    "name": "WORDPRESS_DB_NAME",
+                    "valueFrom": "arn:aws:secretsmanager:eu-central-1:414131675413:secret:SecretWordpress-MRSCvF:dbname::"
+                },
+                {
+                    "name": "WORDPRESS_DB_PASSWORD",
+                    "valueFrom": "arn:aws:secretsmanager:eu-central-1:414131675413:secret:SecretWordpress-MRSCvF:password::"
+                },
+                {
+                    "name": "WORDPRESS_DB_USER",
+                    "valueFrom": "arn:aws:secretsmanager:eu-central-1:414131675413:secret:SecretWordpress-MRSCvF:username::"
+                }
+            ],
+            "logConfiguration": {
+                "logDriver": "awslogs",
+                "options": {
+                    "awslogs-group": "/ecs/wordpress-convenio",
+                    "mode": "non-blocking",
+                    "awslogs-create-group": "true",
+                    "max-buffer-size": "25m",
+                    "awslogs-region": "eu-central-1",
+                    "awslogs-stream-prefix": "ecs"
+                },
+                "secretOptions": []
+            },
+            "systemControls": []
+        }
+    ]
