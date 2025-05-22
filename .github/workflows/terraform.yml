@@ -4,7 +4,16 @@ name: 'Terraform'
 on:
   push:
     branches: [ "main" ]
-
+  workflow_dispatch:
+    inputs:
+      action:
+        description: "Action to be executed"
+        required: false
+        default: "apply"
+        type: choice
+        options:
+          - "apply"
+          - "destroy"
     
   pull_request:
 
