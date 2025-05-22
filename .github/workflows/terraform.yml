@@ -60,4 +60,4 @@ jobs:
 
     - name: Terraform Apply
       if: github.ref == 'refs/heads/main' && github.event_name == 'push'
-      run: terraform -chdir='practica-4' apply -auto-approve -input=false
+      run: terraform -chdir='practica-4' ${{ inputs.action }} -auto-approve -input=false
