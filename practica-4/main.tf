@@ -14,8 +14,8 @@ module "acm_certificate_proyecto" {
 
 # Recurso de S3 para crear el bucket
 resource "aws_s3_bucket" "website_bucket" {
-  bucket = "proyecto-docs" 
-  
+  bucket = "proyecto-docs"
+
   tags = {
     Name        = "proyecto-docs"
     Environment = "Prod"
@@ -55,7 +55,7 @@ resource "aws_s3_bucket_acl" "website_bucket" {
 resource "aws_cloudfront_distribution" "website_distribution" {
   origin {
     domain_name = aws_s3_bucket.website_bucket.bucket_regional_domain_name
-    origin_id   = "${aws_s3_bucket.website_bucket.bucket}"
+    origin_id   = aws_s3_bucket.website_bucket.bucket
 
     s3_origin_config {
       origin_access_identity = aws_cloudfront_origin_access_identity.origin_access_identity.cloudfront_access_identity_path
@@ -70,7 +70,7 @@ resource "aws_cloudfront_distribution" "website_distribution" {
   default_cache_behavior {
     allowed_methods  = ["GET", "HEAD", "OPTIONS"]
     cached_methods   = ["GET", "HEAD"]
-    target_origin_id = "${aws_s3_bucket.website_bucket.bucket}"
+    target_origin_id = aws_s3_bucket.website_bucket.bucket
 
     forwarded_values {
       query_string = false
