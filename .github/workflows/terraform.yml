@@ -59,7 +59,7 @@ jobs:
     - name: Terraform plan
       id: plan
       if: github.event_name == 'pull_request'
-      run: terraform plan -no-color -input=false
+      run: terraform -chdir='practica-4' plan -no-color -input=false
       continue-on-error: true
     
     - uses: actions/github-script@v6
@@ -95,7 +95,7 @@ jobs:
 
     - name: Terraform Apply
       if: github.ref == 'refs/heads/main' && github.event_name == 'push'
-      run: terraform apply -auto-approve -input=false
+      run: terraform -chdir='practica-4' apply -auto-approve -input=false
 
     # - name: Terraform Plan
     #   run: terraform -chdir='practica-4' plan -input=false
