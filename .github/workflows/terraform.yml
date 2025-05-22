@@ -4,22 +4,25 @@ name: 'Terraform'
 on:
   push:
     branches: [ "main" ]
+  pull_request: 
+    branches: [ "main" ]
   workflow_dispatch:
     inputs:
       action:
         description: "Action to be executed"
         required: true
-        default: "apply"
+        default: "none"
         type: choice
         options:
-          - "apply"
+          # - "apply"
+          - "none"
           - "destroy"
-    
-  pull_request:
 
 permissions:
   contents: read
-  
+  pull-requests: write
+
+
 env:
   AWS_REGION: eu-central-1
   
@@ -27,7 +30,7 @@ jobs:
   terraform:
     name: 'Terraform'
     runs-on: ubuntu-latest
-    environment: production
+    # environment: production
 
     defaults:
       run:
@@ -55,17 +58,59 @@ jobs:
     - name: Terraform Format
       run: terraform -chdir='practica-4' fmt -check
 
-    - name: Terraform Plan
-      run: terraform -chdir='practica-4' plan -input=false
+    - name: Terraform plan
+      id: plan
+      if: github.event_name == 'pull_request'
+      run: terraform -chdir='practica-4' plan -no-color -input=false
+      continue-on-error: true
+    
+    - uses: actions/github-script@v6
+      if: github.event_name == 'pull_request'
+      env:
+        PLAN: "terraform\n${{ steps.plan.outputs.stdout }}"
+      with:
+        script: |
+          const output = `#### Terraform Format and Style 🖌\`${{ steps.fmt.outcome }}\`
+          #### Terraform Initialization ⚙️\`${{ steps.init.outcome }}\`
+          #### Terraform Validation 🤖\`${{ steps.validate.outcome }}\`
+          #### Terraform Plan 📖\`${{ steps.plan.outcome }}\`
 
-    - name: Terraform Apply (push to main)
+          <details><summary>Show Plan</summary>
+
+          \`\`\`\n
+          ${process.env.PLAN}
+          \`\`\`
+
+          </details>
+          *Pushed by: @${{ github.actor }}, Action: \`${{ github.event_name }}\`*`;
+
+          github.rest.issues.createComment({
+            issue_number: context.issue.number,
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            body: output
+          })
+
+    - name: Terraform Plan Status
+      if: steps.plan.outcome == 'failure'
+      run: exit 1
+
+    - name: Terraform Apply
       if: github.ref == 'refs/heads/main' && github.event_name == 'push'
       run: terraform -chdir='practica-4' apply -auto-approve -input=false
 
+    # - name: Terraform Plan
+    #   run: terraform -chdir='practica-4' plan -input=false
+
+    # - name: Terraform Apply (push to main)
+    #   if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    #   run: terraform -chdir='practica-4' apply -auto-approve -input=false
+
     - name: Terraform Apply/Destroy (manual dispatch)
-      if: github.event_name == 'workflow_dispatch' && inputs.action == 'apply'
-      run: terraform -chdir='practica-4' apply -auto-approve -input=false
+      if: github.event_name == 'workflow_dispatch' && inputs.action == 'none'
+      run: echo "No actions will be applied"
 
     - name: Terraform Destroy (manual dispatch)
       if: github.event_name == 'workflow_dispatch' && inputs.action == 'destroy'
       run: terraform -chdir='practica-4' destroy -auto-approve -input=false
+    
