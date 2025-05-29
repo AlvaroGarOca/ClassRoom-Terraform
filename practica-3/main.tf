@@ -12,11 +12,9 @@ module "vpc" {
   public_subnets  = ["10.0.101.0/24", "10.0.102.0/24", "10.0.103.0/24"]
 }
 
-
-
 # Security Group para permitir tráfico HTTP
 resource "aws_security_group" "wordpress_sg" {
-  name        = "nginx-sg"
+  name        = "wordpress-sg"
   description = "Allow HTTP"
   vpc_id      = module.vpc.vpc_id
 
@@ -107,10 +105,20 @@ resource "aws_security_group" "wordpress_efs_sg" {
   }
 }
 
+resource "tls_private_key" "terrafrom_generated_private_key" {
+  algorithm = "RSA"
+  rsa_bits  = 4096
+}
 
 resource "aws_key_pair" "ssh-key" {
   key_name   = "server-key"
-  public_key = file(var.public_key_location)
+  public_key = tls_private_key.terrafrom_generated_private_key.public_key_openssh
+}
+
+resource "local_file" "cloud_pem" { 
+  filename = "${path.module}/ec2_private_key.pem"
+  content = tls_private_key.terrafrom_generated_private_key.private_key_openssh
+  file_permission = "0600"
 }
 
 data "aws_ami" "latest_amazon_linux_image" {
@@ -132,8 +140,8 @@ resource "aws_instance" "Conv_EC2" {
   instance_type               = "t2.micro"
   key_name                    = aws_key_pair.ssh-key.key_name
   vpc_security_group_ids      = [aws_security_group.ec2_sg.id]
-  subnet_id                   = module.vpc.private_subnets[0]
-  associate_public_ip_address = false
+  subnet_id                   = module.vpc.public_subnets[0]
+  associate_public_ip_address = true
 
   user_data = <<-EOF
               #!/bin/bash
@@ -141,10 +149,14 @@ resource "aws_instance" "Conv_EC2" {
               yum install -y mysql
 
               # Esperar a que el clúster RDS esté disponible
-              sleep 60
+              sleep 320
 
               # Crear usuario en la base de datos
-              mysql -h ${module.cluster.cluster_endpoint} -u admin -ppassword -e "CREATE USER IF NOT EXISTS 'admin'@'%' IDENTIFIED BY 'password'; GRANT ALL PRIVILEGES ON *.* TO 'admin'@'%' WITH GRANT OPTION; FLUSH PRIVILEGES;"
+              mysql -h ${module.cluster.cluster_endpoint} -u admin -ppassword -e "CREATE DATABASE IF NOT EXISTS wordpress;"
+              mysql -h ${module.cluster.cluster_endpoint} -u admin -ppassword -e "CREATE USER IF NOT EXISTS 'admin'@'%' IDENTIFIED BY 'password';"
+              mysql -h ${module.cluster.cluster_endpoint} -u admin -ppassword -e "GRANT ALL PRIVILEGES ON wordpress.* TO 'admin'@'%' WITH GRANT OPTION;"
+              mysql -h ${module.cluster.cluster_endpoint} -u admin -ppassword -e "FLUSH PRIVILEGES;"
+              
               EOF
 }
 
@@ -158,7 +170,7 @@ module "cluster" {
   instances = {
     one = {}
   }
-
+  manage_master_user_password = false
   master_username = "admin"
   master_password = "password"
 
@@ -179,19 +191,42 @@ module "cluster" {
   }
 }
 
-resource "aws_secretsmanager_secret" "wordpress" {
-  name = "wordpress-credentials"
-}
+module "secrets_manager_wordpress" {
+  source  = "terraform-aws-modules/secrets-manager/aws"
+  version = "1.3.1"
 
-resource "aws_secretsmanager_secret_version" "wordpress" {
-  secret_id = aws_secretsmanager_secret.wordpress.id
+  name                    = "wordpress-credentials-v5"
+  description             = "Credenciales para WordPress ECS"
+  recovery_window_in_days = 0
+
+  # Permite acceso al secreto desde ECS
+  create_policy       = true
+  block_public_policy = true
+  policy_statements = {
+    ecs_read_access = {
+      sid = "AllowEcsExecutionRoleToReadSecrets"
+      principals = [{
+        type        = "AWS"
+        identifiers = ["arn:aws:iam::414131675413:role/ecsTaskExecutionRole"]
+      }]
+      actions   = ["secretsmanager:GetSecretValue"]
+      resources = ["*"]
+    }
+  }
+
   secret_string = jsonencode({
     WORDPRESS_DB_HOST     = module.cluster.cluster_endpoint
     WORDPRESS_DB_NAME     = "wordpress"
     WORDPRESS_DB_USER     = "admin"
     WORDPRESS_DB_PASSWORD = "password"
   })
+
+  tags = {
+    Environment = "dev"
+    Terraform   = "true"
+  }
 }
+
 
 resource "aws_efs_file_system" "wordpress" {
   creation_token = "wordpress-efs"
@@ -265,19 +300,19 @@ resource "aws_ecs_task_definition" "task" {
       secrets = [
         {
           name      = "WORDPRESS_DB_HOST"
-          valueFrom = "${aws_secretsmanager_secret.wordpress.arn}:WORDPRESS_DB_HOST::"
+          valueFrom = "${module.secrets_manager_wordpress.secret_arn}:WORDPRESS_DB_HOST::"
         },
         {
           name      = "WORDPRESS_DB_NAME"
-          valueFrom = "${aws_secretsmanager_secret.wordpress.arn}:WORDPRESS_DB_NAME::"
+          valueFrom = "${module.secrets_manager_wordpress.secret_arn}:WORDPRESS_DB_NAME::"
         },
         {
           name      = "WORDPRESS_DB_USER"
-          valueFrom = "${aws_secretsmanager_secret.wordpress.arn}:WORDPRESS_DB_USER::"
+          valueFrom = "${module.secrets_manager_wordpress.secret_arn}:WORDPRESS_DB_USER::"
         },
         {
           name      = "WORDPRESS_DB_PASSWORD"
-          valueFrom = "${aws_secretsmanager_secret.wordpress.arn}:WORDPRESS_DB_PASSWORD::"
+          valueFrom = "${module.secrets_manager_wordpress.secret_arn}:WORDPRESS_DB_PASSWORD::"
         }
       ]
 

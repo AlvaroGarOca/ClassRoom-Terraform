@@ -35,5 +35,4 @@ override.tf.json
 # Ignore CLI configuration files
 .terraformrc
 terraform.rc
-ec2_private_key.pem
-*.pem
+**/*.pem
