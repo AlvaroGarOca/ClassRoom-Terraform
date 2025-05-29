@@ -36,3 +36,4 @@ override.tf.json
 .terraformrc
 terraform.rc
 ec2_private_key.pem
+*.pem
